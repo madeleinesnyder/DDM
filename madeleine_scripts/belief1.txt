@@ -1,0 +1,82 @@
+model {
+
+#nI = number of kids
+#nT = numbers of trials
+
+#---------- Group level parameters ---------------#
+
+#Hierarchical priors (hyperparameters) on risk propensity
+muG    ~ dnorm(1,1) 
+precG  ~ dgamma(0.001,0.001) T(0.01,)
+
+#Hierarchical priors (hyperparameters) on prior beliefs
+muT[1]   ~ dnorm(1,1) T(0,)
+muT[2]   ~ dnorm(1,1) T(0,)
+precT[1] ~ dgamma(0.001,0.001) T(0.01,)
+precT[2] ~ dgamma(0.001,0.001) T(0.01,)
+
+#---------- Individual level parameters ---------------#
+
+for (i in 1:nI)    {
+  tau[i] ~ dunif(0.0001,minT[i]-0.0001)
+  alpha[i,1]  ~ dunif(0.1,15)
+  dA[i,1]     ~ dnorm(0,1)
+  dA[i,2]     ~ dnorm(0,1)
+  beta[i]     ~ dbeta(1,1)
+  delta0[i]   ~ dnorm(0,1) T(0,)
+  k[i,1]      ~ dunif(0,6)
+  k[i,2]      ~ dunif(0,6)
+
+#Asymmetry ratio for belief updating
+#0.5 = symmetric; >0.5 is bias to 'bust' evidence; <0.5 is bias to 'cash' evidence
+  r[i] ~ dbeta(1,1)
+
+#Evidence weights for belief updating
+#2=Bayesian optimal (< 2 = underweighting new evidence; > 2 = overweighting new evidence)
+  s[i] ~ dnorm(2,1) T(0,)
+
+#Resulting evidence weights (K1=for bust; K2=for cash)
+  K[i,1] <- r[i] * s[i]
+  K[i,2] <- (1-r[i]) * s[i]
+
+#Prior beliefs (t0_1=for bust; t02 = for cash: This model has symmetric prior beliefs)
+  t0[i,1] ~ dnorm(muT[1],0.01+precT[1]) T(1,)
+  t0[i,2] <- t0[i,1]
+
+#Risk propensity parameter - higher gamma = higher risk taking
+  gamma[i]    ~  dnorm(muG,0.01+precG)  T(0.01,)
+}
+
+#Trial-by-Trial changes in belief
+for (i in 1:nI)    {
+    #---Initial beliefs based on prior beliefs (t0_1,t0_2)
+    pBelief[i,1]  ~ dbeta(t0[i,1],t0[i,2])
+    for (t in 2:nT)    {
+    #---Subsequent beliefs based on cumulative weighted evidence 
+    #---cummBust = Cumulativ number of bust trials
+    #---K1 is the weights for all bust trials; K2 for all cash trials
+        pBelief[i,t]  ~ dbeta(t0[i,1]+K[i,1]*cummBust[i,t-1],t0[i,2]+K[i,2]*((t-1)-cummBust[i,t-1]))
+    }
+}
+
+#---Combining risk propensity (gamma) and beliefs to calculate optimal pumps "omega" on each trial
+#---Details in [van Ravenzwaaij, D., Dutilh, G., & Wagenmakers, E. J. (2011). Cognitive model decomposition of the BART]
+for (i in 1:nI)    {
+    for (t in 1:nT)    {
+        omega[i,t]    <- -gamma[i]/log(1-pBelief[i,t])
+    }
+    for (t in 2:nT) {
+        alpha[i,t] <- max(0.1,alpha[i,t-1] + alpha[i,t-1]*(dA[i,1]*CI[i,t-1] + dA[i,2]*(1-CI[i,t-1])))
+    }
+}
+   
+for (i in 1:nI)    {
+for (t in 1:nT)    {
+for(j in 1:(MX))   {
+    delta[i,t,j]  <- delta0[i]*(1-2*ilogit( ifelse(j>=omega[i,t],k[i,1],k[i,2])*(j-omega[i,t]) ))
+    RTACC[i,t,j]  ~ dwiener(alpha[i,t],tau[i],beta[i],delta[i,t,j])
+    pRTACC[i,t,j] ~ dwiener(alpha[i,t],tau[i],beta[i],delta[i,t,j])
+    safe[i,t,j] ~ dinterval(0,RTACC[i,t,j])
+}}}
+}
+

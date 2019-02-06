@@ -1,0 +1,55 @@
+model {
+
+#---------- Definitions -----------#
+
+# x[t,p] - the response-coded reaction time at a certain trial index (t) and pump index (p)
+# alpha  - boundary seperation parameter
+# tau    - non-decision time
+# beta   - bias
+# delta  - drift rate
+
+
+#---------- Inputs --------------#
+
+# Data structure that is flattened struct of Asupp:
+
+# choice-coded_rt   trial_idx   pump_idx   subj_idx   HE (hisotyr effect. 1 = explode, 2 = cashout OR new trial)
+#  0.456              1          1          1
+#  0.544              1          2          1
+#  0.745              1          3          1
+#   .		      .          .          .
+#   .                 .          .          .
+#   .                 .          .          .
+#   .                 .          .          .
+#  0.430              9          5          74
+
+# lens, which is a j x 1 vector containin the number of pumps for each subj_idx
+
+#---------- Outputs --------------#
+
+# Estimates for 
+   # alpha
+   # tau
+   # beta
+   # delta
+   # px[subj_idx,pump]
+
+#---------- Priors ----------------#
+
+for (j in 1:74)  {
+  alpha[j,1]   ~ dunif(0,15)
+  alpha[j,2]   ~ dunif(0,15)
+  tau[j]     ~ dunif(0,0.001) # modify this 
+  beta[j]    ~ dbeta(1,1)
+  delta[j]  ~ dnorm(0,1)
+}
+
+
+#---------- Wiener model ----------#
+
+# For every subj_idx, for every pump, estimate the parameters for the choice-coded RT, and make a new prediction from those parameters
+for (j in 1:6010)    {
+  x[j] ~ dwiener(alpha[sidx[j],HE[j]],tau[sidx[j]],beta[sidx[j]],delta[sidx[j]])
+  px[j] ~ dwiener(alpha[sidx[j],HE[j]],tau[sidx[j]],beta[sidx[j]],delta[sidx[j]])
+ }
+}

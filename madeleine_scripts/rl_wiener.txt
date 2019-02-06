@@ -1,0 +1,65 @@
+model {
+
+#---------- Definitions -----------#
+
+# x[t,p] - the response-coded reaction time at a certain trial index (t) and pump index (p)
+# alpha  - response threshold
+# tau    - non-decision time
+# beta   - bias
+# delta  - drift rate
+
+# N      - number of subjects
+# T      - number of trials for that subject
+
+#---------- Outputs --------------#
+
+# Estimates for the prior parameters, shaped by the data from the response-coded reaction times at trial and pump indexes
+# Estimates for the response-coded reaction time at eah trial and pump index, as produced by the model parameterized by the prior parameters
+
+# The input to the RL model is Q(state,action), where the state is the trial and pump indexes, and the action is the choice response
+
+#---------- Priors ----------------#
+
+alpha   ~ 20.0
+tau     ~ dnorm(1,0.0001)
+beta    ~ 0.0
+delta   ~ dnorm(0,1)
+
+# Learning rate is a gamma with r = 4 and mu = 0.01 (should this be a fixed parameter?)
+lr      ~ dgamma(4,0.01)
+
+
+#---------- Wiener-RL model #----------
+
+# For every subject (with their many trials)
+for (i in 1:N)
+  # TODO: DEFINE T HERE TO GET LENGTH OF OBSEVERATINO FOR THAT SUBJECT
+  for (j in 1:T)
+
+	# Initialize the expected value for each subject's trial idx/ pump idx, choice (state - action) combo
+	# Expected value of the j'th trial and pump index pair, given that they choose PUMP
+	ev[t(j),p(j),1] <- 0
+
+	# Expected value of the j'th trial and pump index pair, given that they choose CASH OUT
+        ev[t(j),p(j),2] <- 0
+	
+	# Fit the drift rate parameter
+
+	# TODO: DEFINE VALUE FUNCTION V?
+	delta[trial(j),pump(j)] <- (delta*(ev[trial(j),pump(j),1] - ev[trial(j),pump(j),2])+V?
+
+	
+	# Fit the prior parameters to the x[t,p] data which is wiener distributed (the response-coded RT)
+	x[t,p] ~ dwiener(alpha[t,p], tau[t,p], beta[t,p], delta[t,p])
+
+	# Estimate the reaction times at each trial and pump index 
+	px[t,p] ~ dwiener(alpha[t,p], tau[t,p], beta[t,p], delta[t,p])a
+
+	# Calculate the log likelihood of the reaction time (choice-coded) 
+	log_lik[trial(j),pump(j)] <- logdensity.wiener(x[trial,pump], px[trial,pump])
+
+	# Update the Q values and value function 
+	ev[trial(j),pump(j),1] <- ev[trial(j),pump(j),1] + lr*(reward(j)-ev[trial(j),pump(j),1])
+	v[trial(j),pump(j)] <-v[trial(j),pump(j)] + lr*(reward(j)-v[trial(j),pump(j)])
+
+}
