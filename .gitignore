@@ -1,0 +1,5 @@
+# Large sampled .mat files
+*.mat
+
+# Files that come from the jags chain generation
+*CODA*
