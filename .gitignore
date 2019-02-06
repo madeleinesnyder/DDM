@@ -2,4 +2,4 @@
 *.mat
 
 # Files that come from the jags chain generation
-*CODA*
+/jagstmp
